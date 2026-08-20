@@ -42,8 +42,14 @@ def analyze_job(job: Job) -> Job:
 
 
 def _skills_component(job: Job, profile: ResumeProfile) -> tuple[float, list[str], list[str], list[str]]:
-    required = set(job.extra.get("required_skills") or job.skills)
-    preferred = set(job.extra.get("preferred_skills", []))
+    required = set(job.extra.get("required_skills") or [])
+    preferred = set(job.extra.get("preferred_skills") or [])
+    if not required and not preferred:
+        # Undifferentiated skill list (no required/preferred signal): treat
+        # everything as required rather than double-counting below.
+        required = set(job.skills)
+        preferred = set()
+
     resume = set(profile.skills)
 
     if not required and not preferred:

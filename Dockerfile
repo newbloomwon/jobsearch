@@ -14,6 +14,10 @@ RUN pip install ".[api,resume,scrapers]"
 # Frontend prototype at the repo root is served at "/" (see jobsearch_api.main).
 COPY index.html ./
 
+# Bundled fallback resume: used for scoring when a visitor uploads none.
+# JSON-array form because the filename contains spaces.
+COPY ["Director of Software Engineering Resume.pdf", "./"]
+
 EXPOSE 8000
 ENV PORT=8000
 

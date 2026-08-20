@@ -303,6 +303,22 @@
     }
   });
 
+  // ---- built-in fallback resume (no upload required) ---------------------
+  let defaultResumeAvailable = false;
+  let defaultResumeName = '';
+  fetch('/api/resume/default')
+    .then(r => r.json())
+    .then(d => {
+      if (d.available) {
+        defaultResumeAvailable = true;
+        defaultResumeName = d.source || 'built-in resume';
+        if (!resumeInput.files.length) {
+          uploadBox.textContent = 'No resume? Using built-in: ' + defaultResumeName + ' — click to upload yours';
+        }
+      }
+    })
+    .catch(() => {});
+
   // ---- platform chips -----------------------------------------------------
   document.querySelectorAll('.chip').forEach(chip => {
     chip.addEventListener('click', () => chip.classList.toggle('on'));
@@ -343,11 +359,12 @@
     const jobList = document.getElementById('jobList');
     jobList.innerHTML = '';
 
-    if (!resumeId) {
+    if (!resumeId && !defaultResumeAvailable) {
       uploadBox.scrollIntoView({ behavior: 'smooth' });
       uploadBox.textContent = 'Please upload your resume first';
       return;
     }
+    const usedDefaultResume = !resumeId && defaultResumeAvailable;
 
     const providers = [...document.querySelectorAll('.chip.on')]
       .map(chip => PROVIDERS[chip.dataset.platform])
@@ -367,13 +384,13 @@
           isRemote: wantsRemote,
           jobType: JOB_TYPES[document.getElementById('jobType').value] || null,
           providers: providers.length ? providers : null,
-          resumeId: resumeId,
+          ...(resumeId ? { resumeId: resumeId } : {}),
           limit: 20
         })
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.detail || 'Search failed');
-      renderResults(data);
+      renderResults(data, usedDefaultResume);
     } catch (err) {
       results.style.display = 'block';
       document.getElementById('resultSummary').textContent = '';
@@ -384,7 +401,7 @@
     }
   });
 
-  function renderResults(data) {
+  function renderResults(data, usedDefaultResume) {
     const results = document.getElementById('results');
     const jobList = document.getElementById('jobList');
     const jobs = data.jobs || [];
@@ -401,6 +418,7 @@
       (mode === 'auto-apply'
         ? autoAppliedCount + ' of ' + jobs.length + ' auto-applied'
         : jobs.length + ' matches found') +
+      (usedDefaultResume ? '<br>scored against the built-in resume' : '') +
       (statusLine ? '<br>' + esc(statusLine) : '');
 
     jobs.forEach(job => {

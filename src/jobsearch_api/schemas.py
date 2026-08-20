@@ -117,6 +117,12 @@ class ResumeUploadResponse(CamelModel):
     profile: ResumeProfileOut
 
 
+class DefaultResumeOut(CamelModel):
+    available: bool
+    source: Optional[str] = None
+    profile: Optional[ResumeProfileOut] = None
+
+
 class ProviderInfoOut(CamelModel):
     name: str
     display_name: str

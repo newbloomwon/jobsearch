@@ -126,3 +126,40 @@ def test_root_serves_frontend(client):
     # The partner's prototype (repo-root index.html) takes precedence; the
     # packaged placeholder serves when running outside the repo.
     assert "JobMatch" in resp.text or "Placeholder UI" in resp.text
+
+
+def test_default_resume_fallback_via_env(tmp_path, monkeypatch):
+    fake = tmp_path / "default_resume.txt"
+    fake.write_text(
+        "Software Engineer. Python, React, Docker, Kubernetes. "
+        "6+ years experience. Master of Science."
+    )
+    monkeypatch.setenv("JOBSEARCH_DEFAULT_RESUME", str(fake))
+    scoped = TestClient(create_app())
+
+    info = scoped.get("/api/resume/default").json()
+    assert info["available"] is True
+    assert info["source"] == "default_resume.txt"
+    assert "python" in info["profile"]["skills"]
+
+    resp = scoped.post(
+        "/api/jobs/search", json={"keywords": "engineer", "providers": ["sample"]}
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["scored"] is True, "no resume supplied -> default profile scores the search"
+    assert body["jobs"][0]["score"] > 0
+
+
+def test_bundled_default_resume_loads():
+    from pathlib import Path
+
+    pdf = Path("Director of Software Engineering Resume.pdf")
+    if not pdf.is_file():
+        pytest.skip("bundled default resume PDF not present")
+    scoped = TestClient(create_app())
+    info = scoped.get("/api/resume/default").json()
+    assert info["available"] is True
+    assert info["source"] == pdf.name
+    assert len(info["profile"]["skills"]) >= 5
+    assert info["profile"]["education"] in {"bachelor", "master", "phd"}

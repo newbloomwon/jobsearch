@@ -102,6 +102,18 @@ def test_score_range_clamped():
     assert 0.0 <= scored.score <= 100.0
 
 
+def test_preferred_only_job_no_duplicate_matches():
+    # A job listing only nice-to-haves must not double-count those skills
+    # via the "no required skills" fallback.
+    job = analyze_job(_job(description="Nice to have: Python and React. Join our team!"))
+    profile = _profile(skills=["python"])
+    scored = score_job(job, profile)
+    assert sorted(scored.breakdown.matched_skills) == ["python"]
+    assert scored.breakdown.matched_preferred_skills == ["python"]
+    # Matched 1 of the 2 nice-to-haves: weight 1*1 / (2*0 + 1*2) = 0.5
+    assert scored.breakdown.skills == 0.5
+
+
 def test_preferred_skills_boost():
     base = _profile(skills=["python"])
     no_pref = score_job(analyze_job(_job(description="Requirements: Python.")), base)

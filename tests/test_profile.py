@@ -30,8 +30,17 @@ def test_seniority_detection():
     assert detect_seniority("Senior Software Engineer") == "senior"
     assert detect_seniority("Software Engineer Intern") == "intern"
     assert detect_seniority("Principal Architect") == "principal"
+    assert detect_seniority("Director of Software Engineering") == "principal"
+    assert detect_seniority("VP of Engineering") == "principal"
     assert detect_seniority("Junior Data Analyst") == "junior"
     assert detect_seniority("Software Engineer") is None
+
+
+def test_profile_seniority_from_headline_when_titles_miss_it():
+    profile = build_profile(
+        "Director of Software Engineering\nSoftware Developer at ACME — Java and AWS."
+    )
+    assert profile.seniority == "principal"
 
 
 def test_education_detected(resume_profile):

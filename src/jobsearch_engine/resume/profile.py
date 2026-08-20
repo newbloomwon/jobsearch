@@ -45,7 +45,7 @@ SENIORITY_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
         re.compile(r"\b(senior|sr\.?|lead|head of|manager ii|experienced)\b", re.IGNORECASE),
     ),
     ("staff", re.compile(r"\b(staff)\b", re.IGNORECASE)),
-    ("principal", re.compile(r"\b(principal|distinguished|architect)\b", re.IGNORECASE)),
+    ("principal", re.compile(r"\b(principal|distinguished|architect|director|vp)\b", re.IGNORECASE)),
 ]
 
 TOKEN_RE = re.compile(r"[a-z][a-z+#./]{1,20}")
@@ -99,7 +99,10 @@ def detect_education(text: str) -> Optional[str]:
 def build_profile(text: str) -> ResumeProfile:
     skills = sorted(find_skills(text).keys())
     titles = detect_titles(text)
-    seniority = detect_seniority(" ".join(titles) if titles else text)
+    # Titles first (most reliable); fall back to full text so a headline like
+    # "Director of Software Engineering" still sets the seniority tier even
+    # when title extraction misses it.
+    seniority = (detect_seniority(" ".join(titles)) if titles else None) or detect_seniority(text)
     # Fall back to years-based tier when no explicit seniority words appear.
     years = detect_years(text)
     if seniority is None and years is not None:

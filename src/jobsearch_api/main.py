@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,6 +27,7 @@ from jobsearch_engine import __version__ as engine_version
 from jobsearch_engine.providers import Settings
 
 from .schemas import (
+    DefaultResumeOut,
     HealthOut,
     ProviderInfoOut,
     ResumeProfileOut,
@@ -37,6 +39,18 @@ from .schemas import (
 from .store import ResumeStore
 
 _STATIC_DIR = Path(__file__).parent / "static"
+
+# Bundled demo resume used for scoring when the visitor uploads none.
+_DEFAULT_RESUME_NAME = "Director of Software Engineering Resume.pdf"
+
+
+def _find_default_resume() -> Optional[Path]:
+    override = os.environ.get("JOBSEARCH_DEFAULT_RESUME", "").strip()
+    if override:
+        candidate = Path(override)
+        return candidate if candidate.is_file() else None
+    candidate = Path.cwd() / _DEFAULT_RESUME_NAME
+    return candidate if candidate.is_file() else None
 
 
 def _env_int(name: str, default: int) -> int:
@@ -51,6 +65,20 @@ def create_app() -> FastAPI:
     registry = build_registry(settings)
     store = ResumeStore(ttl_seconds=_env_int("JOBSEARCH_RESUME_TTL_HOURS", 24) * 3600)
     provider_timeout = float(_env_int("JOBSEARCH_PROVIDER_TIMEOUT", 60))
+
+    # Bundled fallback resume: parsed once at startup, used to score searches
+    # that arrive with neither resumeId nor resumeText.
+    default_profile = None
+    default_source: Optional[str] = None
+    default_path = _find_default_resume()
+    if default_path is not None:
+        try:
+            default_profile = build_profile(
+                extract_text(default_path.name, default_path.read_bytes())
+            )
+            default_source = default_path.name
+        except (ResumeParseError, OSError) as exc:
+            print(f"warning: could not load default resume {default_path}: {exc}")
 
     origins_raw = os.environ.get("JOBSEARCH_ALLOWED_ORIGINS", "*").strip()
     origins = ["*"] if origins_raw == "*" else [o.strip() for o in origins_raw.split(",") if o.strip()]
@@ -139,6 +167,21 @@ def create_app() -> FastAPI:
             profile=ResumeProfileOut(**profile.model_dump(exclude={"tokens"})),
         )
 
+    @app.get(
+        "/api/resume/default",
+        response_model=DefaultResumeOut,
+        tags=["resume"],
+        summary="The bundled fallback resume used when none is uploaded",
+    )
+    async def get_default_resume() -> DefaultResumeOut:
+        if default_profile is None:
+            return DefaultResumeOut(available=False)
+        return DefaultResumeOut(
+            available=True,
+            source=default_source,
+            profile=ResumeProfileOut(**default_profile.model_dump(exclude={"tokens"})),
+        )
+
     # ---- search -----------------------------------------------------------
 
     @app.post(
@@ -155,6 +198,10 @@ def create_app() -> FastAPI:
                 raise HTTPException(404, f"resumeId '{request.resume_id}' not found or expired")
         elif request.resume_text:
             profile = build_profile(request.resume_text)
+        else:
+            # No resume supplied: score against the bundled fallback resume
+            # when one ships with the app; otherwise the search is unscored.
+            profile = default_profile
 
         query = JobQuery(
             keywords=request.keywords,
