@@ -9,8 +9,8 @@ Built for a hackathon in two halves:
 | Piece | Location | Owner |
 |---|---|---|
 | **Engine** — providers, dedupe, resume parsing, scoring | `src/jobsearch_engine/` | backend |
-| **API** — thin FastAPI wrapper + placeholder page | `src/jobsearch_api/` | backend |
-| **Frontend** — replaces the placeholder at `/` | *(your repo)* | frontend partner |
+| **API** — thin FastAPI wrapper | `src/jobsearch_api/` | backend |
+| **Frontend** — `index.html` at the repo root, served at `/` | repo root | frontend partner |
 
 The engine is **framework-agnostic**: it's a pure-Python package with zero web
 framework imports. Consume it via the HTTP API (any frontend framework works),

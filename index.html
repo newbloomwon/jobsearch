@@ -194,7 +194,7 @@
         <div class="chip" data-platform="indeed">Indeed</div>
         <div class="chip" data-platform="glassdoor">Glassdoor</div>
         <div class="chip" data-platform="handshake">Handshake</div>
-        <div class="chip" data-platform="chrome">Chrome</div>
+        <div class="chip" data-platform="sample">Sample Data</div>
       </div>
     </div>
 
@@ -268,24 +268,47 @@
     <div id="jobList"></div>
   </div>
 
-  <p class="note">Prototype — results are mock data for layout/flow review, not live job listings.</p>
+  <p class="note">Live results from the configured job boards (engine API docs at /docs). Auto-apply marks high matches locally — it doesn't submit applications.</p>
 </div>
 
 <script>
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  // ---- resume upload -> POST /api/resume ---------------------------------
   const uploadBox = document.getElementById('uploadBox');
   const resumeInput = document.getElementById('resumeInput');
+  let resumeId = null;
+
   uploadBox.addEventListener('click', () => resumeInput.click());
-  resumeInput.addEventListener('change', () => {
-    if (resumeInput.files.length) {
-      uploadBox.textContent = '✓ ' + resumeInput.files[0].name;
+  resumeInput.addEventListener('change', async () => {
+    const file = resumeInput.files[0];
+    if (!file) return;
+    uploadBox.textContent = 'Parsing ' + file.name + '…';
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const resp = await fetch('/api/resume', { method: 'POST', body });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || 'Could not parse resume');
+      resumeId = data.resumeId;
+      const skills = (data.profile && data.profile.skills) || [];
+      uploadBox.textContent = '✓ ' + file.name +
+        (skills.length ? ' · ' + skills.slice(0, 5).join(', ') + (skills.length > 5 ? ' +' + (skills.length - 5) : '') : '');
       uploadBox.classList.add('filled');
+    } catch (err) {
+      resumeId = null;
+      uploadBox.classList.remove('filled');
+      uploadBox.textContent = '✗ ' + err.message + ' — click to retry';
     }
   });
 
+  // ---- platform chips -----------------------------------------------------
   document.querySelectorAll('.chip').forEach(chip => {
     chip.addEventListener('click', () => chip.classList.toggle('on'));
   });
 
+  // ---- discovery / auto-apply mode ----------------------------------------
   const modeDiscovery = document.getElementById('modeDiscovery');
   const modeAutoApply = document.getElementById('modeAutoApply');
   const modeHint = document.getElementById('modeHint');
@@ -301,16 +324,12 @@
     mode = 'auto-apply';
     modeAutoApply.classList.add('active');
     modeDiscovery.classList.remove('active');
-    modeHint.textContent = 'Auto-apply: JobMatch applies for you to jobs above the quality threshold.';
+    modeHint.textContent = 'Auto-apply: jobs scoring 75%+ are marked applied with one-click links.';
   });
 
-  const mockJobs = [
-    { title: 'Senior Product Manager', company: 'Northwind Labs', location: 'New York, NY', platform: 'LinkedIn', score: 92 },
-    { title: 'Product Manager, Growth', company: 'Fernbank', location: 'Remote', platform: 'Indeed', score: 85 },
-    { title: 'Associate Product Manager', company: 'Halyard Inc.', location: 'New York, NY', platform: 'Glassdoor', score: 71 },
-    { title: 'Product Manager Intern', company: 'CampusWorks', location: 'Brooklyn, NY', platform: 'Handshake', score: 58 },
-    { title: 'Technical Product Manager', company: 'Ridgeline', location: 'Remote', platform: 'Chrome', score: 64 },
-  ];
+  // ---- search -> POST /api/jobs/search ------------------------------------
+  const PROVIDERS = { linkedin: 'linkedin', indeed: 'indeed', glassdoor: 'glassdoor', handshake: 'handshake', sample: 'sample' };
+  const JOB_TYPES = { 'full-time': 'fulltime', 'part-time': 'parttime', 'gig': 'contract' };
 
   function scoreClass(s) {
     if (s >= 80) return 'score-good';
@@ -318,46 +337,116 @@
     return 'score-low';
   }
 
-  document.getElementById('confirmBtn').addEventListener('click', () => {
+  document.getElementById('confirmBtn').addEventListener('click', async () => {
+    const confirmBtn = document.getElementById('confirmBtn');
     const results = document.getElementById('results');
     const jobList = document.getElementById('jobList');
     jobList.innerHTML = '';
 
-    const overall = Math.round(mockJobs.reduce((a, j) => a + j.score, 0) / mockJobs.length);
-    document.getElementById('overallScore').textContent = overall + '%';
-    document.getElementById('resultSummary').textContent =
-      mode === 'auto-apply'
-        ? mockJobs.filter(j => j.score >= 75).length + ' of ' + mockJobs.length + ' auto-applied'
-        : mockJobs.length + ' matches found';
+    if (!resumeId) {
+      uploadBox.scrollIntoView({ behavior: 'smooth' });
+      uploadBox.textContent = 'Please upload your resume first';
+      return;
+    }
 
-    mockJobs.forEach((job, i) => {
+    const providers = [...document.querySelectorAll('.chip.on')]
+      .map(chip => PROVIDERS[chip.dataset.platform])
+      .filter(Boolean);
+    const loc = document.getElementById('location').value.trim();
+    const wantsRemote = /remote/i.test(loc);
+
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Searching… (scraped boards can take ~30–60s)';
+    try {
+      const resp = await fetch('/api/jobs/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          keywords: document.getElementById('jobTitle').value,
+          location: wantsRemote ? null : (loc || null),
+          isRemote: wantsRemote,
+          jobType: JOB_TYPES[document.getElementById('jobType').value] || null,
+          providers: providers.length ? providers : null,
+          resumeId: resumeId,
+          limit: 20
+        })
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || 'Search failed');
+      renderResults(data);
+    } catch (err) {
+      results.style.display = 'block';
+      document.getElementById('resultSummary').textContent = '';
+      jobList.innerHTML = '<p class="job-meta">✗ ' + esc(err.message) + '</p>';
+    } finally {
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = 'Confirm';
+    }
+  });
+
+  function renderResults(data) {
+    const results = document.getElementById('results');
+    const jobList = document.getElementById('jobList');
+    const jobs = data.jobs || [];
+    jobList.innerHTML = '';
+
+    const overall = jobs.length ? Math.round(jobs.reduce((a, j) => a + j.score, 0) / jobs.length) : 0;
+    document.getElementById('overallScore').textContent = overall + '%';
+
+    const autoAppliedCount = jobs.filter(j => j.score >= 75).length;
+    const statusLine = (data.providers || []).map(p =>
+      p.provider + ': ' + (p.status === 'ok' ? p.count : (p.status === 'not_configured' ? 'setup needed' : p.status))
+    ).join(' · ');
+    document.getElementById('resultSummary').innerHTML =
+      (mode === 'auto-apply'
+        ? autoAppliedCount + ' of ' + jobs.length + ' auto-applied'
+        : jobs.length + ' matches found') +
+      (statusLine ? '<br>' + esc(statusLine) : '');
+
+    jobs.forEach(job => {
+      const applied = mode === 'auto-apply' && job.score >= 75;
+      const matched = job.breakdown && job.breakdown.matchedSkills && job.breakdown.matchedSkills.length
+        ? '<div class="job-meta">Skills: ' + esc(job.breakdown.matchedSkills.slice(0, 5).join(', ')) + '</div>'
+        : '';
+      const alsoOn = job.extra && job.extra.alsoFoundOn && job.extra.alsoFoundOn.length
+        ? ' · also on ' + esc(job.extra.alsoFoundOn.join(', '))
+        : '';
+      const titleHtml = job.url
+        ? '<a href="' + esc(job.url) + '" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">' + esc(job.title) + '</a>'
+        : esc(job.title);
+      const applyHtml = job.url
+        ? '<a class="apply-btn' + (applied ? ' applied' : '') + '" href="' + esc(job.url) + '" target="_blank" rel="noopener">' + (applied ? '✓ Applied' : 'Apply') + '</a>'
+        : '<button class="apply-btn' + (applied ? ' applied' : '') + '">' + (applied ? '✓ Applied' : 'Apply') + '</button>';
+
       const row = document.createElement('div');
       row.className = 'job';
-      const autoApplied = mode === 'auto-apply' && job.score >= 75;
       row.innerHTML = `
         <div>
-          <p class="job-title">${job.title}</p>
-          <div class="job-meta">${job.company} · ${job.location}</div>
-          <span class="platform-tag">${job.platform}</span><br>
-          <button class="apply-btn ${autoApplied ? 'applied' : ''}" data-i="${i}">
-            ${autoApplied ? '✓ Applied' : 'Apply'}
-          </button>
+          <p class="job-title">${titleHtml}</p>
+          <div class="job-meta">${esc(job.company || '—')} · ${esc(job.location || '—')}</div>
+          ${matched}
+          <span class="platform-tag">${esc(job.sourceDisplay || job.source)}${alsoOn}</span><br>
+          ${applyHtml}
         </div>
-        <div class="score-badge ${scoreClass(job.score)}">${job.score}%</div>
+        <div class="score-badge ${scoreClass(job.score)}">${Math.round(job.score)}%</div>
       `;
       jobList.appendChild(row);
     });
 
-    jobList.querySelectorAll('.apply-btn:not(.applied)').forEach(btn => {
-      btn.addEventListener('click', () => {
-        btn.textContent = '✓ Applied';
-        btn.classList.add('applied');
+    if (!jobs.length) {
+      jobList.innerHTML = '<p class="job-meta">No jobs returned — a board may be blocked or unconfigured. Try enabling the Sample Data chip for guaranteed results.</p>';
+    } else {
+      jobList.querySelectorAll('button.apply-btn:not(.applied)').forEach(btn => {
+        btn.addEventListener('click', () => {
+          btn.textContent = '✓ Applied';
+          btn.classList.add('applied');
+        });
       });
-    });
+    }
 
     results.style.display = 'block';
     results.scrollIntoView({ behavior: 'smooth' });
-  });
+  }
 </script>
 </body>
 </html>
