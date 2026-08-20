@@ -12,7 +12,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from jobsearch_engine import (
     JobQuery,
@@ -185,9 +185,21 @@ def create_app() -> FastAPI:
             from_attributes=True,
         )
 
-    # ---- placeholder frontend (partner replaces this) ---------------------
-    if _STATIC_DIR.is_dir():
-        app.mount("/", StaticFiles(directory=_STATIC_DIR, html=True), name="placeholder-ui")
+    # ---- frontend ----------------------------------------------------------
+    # The frontend prototype lives at the repo root (index.html) and is served
+    # whenever present — from the repo root in dev, from WORKDIR in Docker.
+    # The packaged placeholder in static/ is only a fallback for running the
+    # package outside the repo.
+    partner_page = Path.cwd() / "index.html"
+    fallback_page = _STATIC_DIR / "index.html"
+
+    @app.get("/", include_in_schema=False)
+    async def frontend() -> FileResponse:
+        if partner_page.is_file():
+            return FileResponse(partner_page)
+        if fallback_page.is_file():
+            return FileResponse(fallback_page)
+        raise HTTPException(status_code=404, detail="No frontend found")
 
     return app
 

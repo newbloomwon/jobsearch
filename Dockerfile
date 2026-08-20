@@ -11,6 +11,9 @@ COPY pyproject.toml README.md ./
 COPY src ./src
 RUN pip install ".[api,resume,scrapers]"
 
+# Frontend prototype at the repo root is served at "/" (see jobsearch_api.main).
+COPY index.html ./
+
 EXPOSE 8000
 ENV PORT=8000
 

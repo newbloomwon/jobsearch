@@ -43,7 +43,9 @@ def registry():
 
 
 async def test_search_returns_jobs_and_provider_metadata(registry):
-    result = await search(JobQuery(keywords="engineer"), registry)
+    result = await search(
+        JobQuery(keywords="engineer"), registry, requested=["sample", "broken", "slow"]
+    )
     assert result.jobs, "sample provider should return jobs"
     statuses = {p.provider: p.status for p in result.providers}
     assert statuses["sample"] == "ok"
@@ -54,7 +56,9 @@ async def test_search_returns_jobs_and_provider_metadata(registry):
 
 
 async def test_one_provider_timeout_doesnt_kill_search(registry):
-    result = await search(JobQuery(keywords="engineer"), registry, timeout_s=0.2)
+    result = await search(
+        JobQuery(keywords="engineer"), registry, requested=["sample", "slow"], timeout_s=0.2
+    )
     statuses = {p.provider: p.status for p in result.providers}
     assert statuses["slow"] == "timeout"
     assert statuses["sample"] == "ok"
@@ -100,7 +104,9 @@ async def test_unknown_provider_reported(registry):
 
 async def test_dedupe_across_providers_counts_removed():
     registry = {"sample": SampleProvider(), "sample2": DelayedSampleProvider()}
-    result = await search(JobQuery(keywords="data engineer"), registry)
+    result = await search(
+        JobQuery(keywords="data engineer"), registry, requested=["sample", "sample2"]
+    )
     # The Acme Analytics Data Engineer posting appears in both feeds.
     assert result.duplicates_removed >= 1
     merged = [j for j in result.jobs if j.company and "Acme" in j.company]

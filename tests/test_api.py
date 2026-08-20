@@ -120,7 +120,9 @@ def test_search_reports_unknown_provider(client):
     assert providers["nope"]["status"] == "error"
 
 
-def test_placeholder_ui_served(client):
+def test_root_serves_frontend(client):
     resp = client.get("/")
     assert resp.status_code == 200
-    assert "Placeholder UI" in resp.text
+    # The partner's prototype (repo-root index.html) takes precedence; the
+    # packaged placeholder serves when running outside the repo.
+    assert "JobMatch" in resp.text or "Placeholder UI" in resp.text
