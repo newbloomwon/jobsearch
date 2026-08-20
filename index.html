@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JobMatch</title>
+<style>
+  :root {
+    --bg: #f7f7f8;
+    --card: #ffffff;
+    --border: #e2e2e6;
+    --text: #1c1c1f;
+    --muted: #6b6b76;
+    --accent: #2f5fef;
+    --accent-soft: #eaefff;
+    --good: #1a8a4a;
+    --mid: #b8860b;
+    --low: #c0392b;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    justify-content: center;
+    padding: 32px 16px 80px;
+  }
+  .app { width: 100%; max-width: 640px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .subtitle { color: var(--muted); font-size: 14px; margin: 0 0 24px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .field { margin-bottom: 16px; }
+  .field:last-child { margin-bottom: 0; }
+  select, input[type="text"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    background: #fff;
+    color: var(--text);
+  }
+  select:focus, input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .upload {
+    border: 1.5px dashed var(--border);
+    border-radius: 8px;
+    padding: 18px;
+    text-align: center;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--muted);
+    transition: border-color .15s, background .15s;
+  }
+  .upload:hover { border-color: var(--accent); background: var(--accent-soft); }
+  .upload.filled { border-style: solid; border-color: var(--good); color: var(--text); background: #f0faf3; }
+  input[type="file"] { display: none; }
+  .checks { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 7px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    user-select: none;
+    background: #fff;
+    transition: all .12s;
+  }
+  .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .mode-toggle {
+    display: flex;
+    background: #ececef;
+    border-radius: 999px;
+    padding: 3px;
+    margin-bottom: 20px;
+  }
+  .mode-toggle button {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 10px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 999px;
+    cursor: pointer;
+    color: var(--muted);
+  }
+  .mode-toggle button.active { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .mode-hint { font-size: 12.5px; color: var(--muted); margin: -12px 0 20px; }
+  .confirm-btn {
+    width: 100%;
+    padding: 14px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .confirm-btn:disabled { background: #b9c4f5; cursor: not-allowed; }
+  .confirm-btn:not(:disabled):hover { background: #2450d6; }
+  #results { display: none; }
+  .overall {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .overall .score { font-size: 26px; font-weight: 700; }
+  .job {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+    gap: 12px;
+  }
+  .job:last-child { border-bottom: none; }
+  .job-title { font-weight: 600; font-size: 14.5px; margin: 0 0 2px; }
+  .job-meta { color: var(--muted); font-size: 13px; }
+  .platform-tag {
+    display: inline-block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    background: var(--accent-soft);
+    color: var(--accent);
+    padding: 2px 7px;
+    border-radius: 4px;
+    margin-top: 6px;
+  }
+  .score-badge {
+    font-size: 13px;
+    font-weight: 700;
+    padding: 4px 9px;
+    border-radius: 6px;
+    white-space: nowrap;
+  }
+  .score-good { background: #e6f6ec; color: var(--good); }
+  .score-mid { background: #fbf2df; color: var(--mid); }
+  .score-low { background: #fbe9e7; color: var(--low); }
+  .apply-btn {
+    display: inline-block;
+    margin-top: 6px;
+    font-size: 12.5px;
+    padding: 5px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #fff;
+    cursor: pointer;
+  }
+  .apply-btn.applied { background: #e6f6ec; border-color: var(--good); color: var(--good); cursor: default; }
+  .note {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 24px;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>JobMatch</h1>
+  <p class="subtitle">Upload your resume, set your filters, and find (or apply to) jobs across platforms.</p>
+
+  <div class="card">
+    <div class="field">
+      <label>Resume</label>
+      <div class="upload" id="uploadBox">Click to upload your resume (PDF, DOCX)</div>
+      <input type="file" id="resumeInput" accept=".pdf,.doc,.docx">
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="field">
+      <label>Platform</label>
+      <div class="checks">
+        <div class="chip on" data-platform="linkedin">LinkedIn</div>
+        <div class="chip" data-platform="indeed">Indeed</div>
+        <div class="chip" data-platform="glassdoor">Glassdoor</div>
+        <div class="chip" data-platform="handshake">Handshake</div>
+        <div class="chip" data-platform="chrome">Chrome</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="jobTitle">Job Title</label>
+      <select id="jobTitle">
+        <option>Product Manager</option>
+        <option>Software Engineer</option>
+        <option>Data Analyst</option>
+        <option>UX Designer</option>
+        <option>Marketing Associate</option>
+        <option>Sales Representative</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="location">Location</label>
+      <input type="text" id="location" placeholder="e.g. New York, NY or Remote">
+    </div>
+
+    <div class="field">
+      <label for="jobType">Job Type</label>
+      <select id="jobType">
+        <option value="full-time">Full-time</option>
+        <option value="part-time">Part-time</option>
+        <option value="gig">Gig</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="companyType">Company Type</label>
+      <select id="companyType">
+        <option>Startup</option>
+        <option>Enterprise</option>
+        <option>Nonprofit</option>
+        <option>Government</option>
+        <option>Agency</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="language">Language</label>
+      <select id="language">
+        <option>English</option>
+        <option>Spanish</option>
+        <option>Chinese</option>
+        <option>French</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="card">
+    <label style="margin-bottom:10px;">Mode</label>
+    <div class="mode-toggle">
+      <button id="modeDiscovery" class="active">Discovery</button>
+      <button id="modeAutoApply">Auto-apply</button>
+    </div>
+    <p class="mode-hint" id="modeHint">Discovery: review matched jobs and apply yourself.</p>
+
+    <button class="confirm-btn" id="confirmBtn">Confirm</button>
+  </div>
+
+  <div class="card" id="results">
+    <div class="overall">
+      <div>
+        <div style="font-size:13px;color:var(--muted);font-weight:600;">Final Quality</div>
+        <div class="score" id="overallScore">—</div>
+      </div>
+      <div style="font-size:13px;color:var(--muted);text-align:right;" id="resultSummary"></div>
+    </div>
+    <div id="jobList"></div>
+  </div>
+
+  <p class="note">Prototype — results are mock data for layout/flow review, not live job listings.</p>
+</div>
+
+<script>
+  const uploadBox = document.getElementById('uploadBox');
+  const resumeInput = document.getElementById('resumeInput');
+  uploadBox.addEventListener('click', () => resumeInput.click());
+  resumeInput.addEventListener('change', () => {
+    if (resumeInput.files.length) {
+      uploadBox.textContent = '✓ ' + resumeInput.files[0].name;
+      uploadBox.classList.add('filled');
+    }
+  });
+
+  document.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => chip.classList.toggle('on'));
+  });
+
+  const modeDiscovery = document.getElementById('modeDiscovery');
+  const modeAutoApply = document.getElementById('modeAutoApply');
+  const modeHint = document.getElementById('modeHint');
+  let mode = 'discovery';
+
+  modeDiscovery.addEventListener('click', () => {
+    mode = 'discovery';
+    modeDiscovery.classList.add('active');
+    modeAutoApply.classList.remove('active');
+    modeHint.textContent = 'Discovery: review matched jobs and apply yourself.';
+  });
+  modeAutoApply.addEventListener('click', () => {
+    mode = 'auto-apply';
+    modeAutoApply.classList.add('active');
+    modeDiscovery.classList.remove('active');
+    modeHint.textContent = 'Auto-apply: JobMatch applies for you to jobs above the quality threshold.';
+  });
+
+  const mockJobs = [
+    { title: 'Senior Product Manager', company: 'Northwind Labs', location: 'New York, NY', platform: 'LinkedIn', score: 92 },
+    { title: 'Product Manager, Growth', company: 'Fernbank', location: 'Remote', platform: 'Indeed', score: 85 },
+    { title: 'Associate Product Manager', company: 'Halyard Inc.', location: 'New York, NY', platform: 'Glassdoor', score: 71 },
+    { title: 'Product Manager Intern', company: 'CampusWorks', location: 'Brooklyn, NY', platform: 'Handshake', score: 58 },
+    { title: 'Technical Product Manager', company: 'Ridgeline', location: 'Remote', platform: 'Chrome', score: 64 },
+  ];
+
+  function scoreClass(s) {
+    if (s >= 80) return 'score-good';
+    if (s >= 60) return 'score-mid';
+    return 'score-low';
+  }
+
+  document.getElementById('confirmBtn').addEventListener('click', () => {
+    const results = document.getElementById('results');
+    const jobList = document.getElementById('jobList');
+    jobList.innerHTML = '';
+
+    const overall = Math.round(mockJobs.reduce((a, j) => a + j.score, 0) / mockJobs.length);
+    document.getElementById('overallScore').textContent = overall + '%';
+    document.getElementById('resultSummary').textContent =
+      mode === 'auto-apply'
+        ? mockJobs.filter(j => j.score >= 75).length + ' of ' + mockJobs.length + ' auto-applied'
+        : mockJobs.length + ' matches found';
+
+    mockJobs.forEach((job, i) => {
+      const row = document.createElement('div');
+      row.className = 'job';
+      const autoApplied = mode === 'auto-apply' && job.score >= 75;
+      row.innerHTML = `
+        <div>
+          <p class="job-title">${job.title}</p>
+          <div class="job-meta">${job.company} · ${job.location}</div>
+          <span class="platform-tag">${job.platform}</span><br>
+          <button class="apply-btn ${autoApplied ? 'applied' : ''}" data-i="${i}">
+            ${autoApplied ? '✓ Applied' : 'Apply'}
+          </button>
+        </div>
+        <div class="score-badge ${scoreClass(job.score)}">${job.score}%</div>
+      `;
+      jobList.appendChild(row);
+    });
+
+    jobList.querySelectorAll('.apply-btn:not(.applied)').forEach(btn => {
+      btn.addEventListener('click', () => {
+        btn.textContent = '✓ Applied';
+        btn.classList.add('applied');
+      });
+    });
+
+    results.style.display = 'block';
+    results.scrollIntoView({ behavior: 'smooth' });
+  });
+</script>
+</body>
+</html>
