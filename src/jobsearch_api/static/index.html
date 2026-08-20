@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JobSearch — placeholder UI</title>
+<style>
+  :root {
+    --bg: #0e1117; --card: #161b24; --card2: #1c2330; --border: #2a3242;
+    --text: #e6e9ef; --muted: #8b95a7; --accent: #6c8cff; --good: #3ecf8e;
+    --warn: #f0b429; --bad: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .banner {
+    background: linear-gradient(90deg, #24304d, #1a2133); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 14px; margin-bottom: 20px; font-size: 13px; color: #b9c4dd;
+  }
+  .banner code { background: #0e1117; padding: 1px 6px; border-radius: 5px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px;
+  }
+  .card h2 { font-size: 15px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+  input[type=text], select {
+    width: 100%; background: var(--card2); border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 9px 11px; font-size: 14px;
+  }
+  input[type=file] { color: var(--muted); font-size: 13px; }
+  button {
+    background: var(--accent); color: #fff; border: 0; border-radius: 8px;
+    padding: 10px 18px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 14px;
+  }
+  button:disabled { opacity: .5; cursor: wait; }
+  button.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .chip {
+    background: var(--card2); border: 1px solid var(--border); border-radius: 999px;
+    padding: 2px 10px; font-size: 12px; color: var(--accent);
+  }
+  .chip.grey { color: var(--muted); }
+  .providers label { display: inline-flex; align-items: center; gap: 6px; margin: 4px 10px 0 0; color: var(--text); font-size: 13px; }
+  .providers .off { color: var(--muted); }
+  .providers .off input { display: none; }
+  .status-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0; }
+  .pill { border-radius: 999px; padding: 3px 12px; font-size: 12px; border: 1px solid var(--border); background: var(--card2); }
+  .pill.ok { color: var(--good); border-color: var(--good); }
+  .pill.err { color: var(--bad); border-color: var(--bad); }
+  .pill.nc { color: var(--warn); border-color: var(--warn); }
+  .job {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px; margin-bottom: 12px; display: flex; gap: 16px;
+  }
+  .score {
+    flex: 0 0 64px; height: 64px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; font-size: 18px; font-weight: 700; border: 3px solid var(--accent);
+    color: var(--accent);
+  }
+  .score.hi { border-color: var(--good); color: var(--good); }
+  .score.lo { border-color: var(--warn); color: var(--warn); }
+  .job h3 { margin: 0; font-size: 16px; }
+  .job h3 a { color: var(--text); text-decoration: none; }
+  .job h3 a:hover { color: var(--accent); }
+  .meta { color: var(--muted); font-size: 13px; margin: 3px 0 8px; }
+  .reasons { margin: 6px 0 0; padding-left: 18px; color: var(--muted); font-size: 13px; }
+  .empty { color: var(--muted); text-align: center; padding: 30px 0; }
+  .spin {
+    width: 22px; height: 22px; border: 3px solid var(--border); border-top-color: var(--accent);
+    border-radius: 50%; animation: r 0.8s linear infinite; display: inline-block; vertical-align: -5px;
+  }
+  @keyframes r { to { transform: rotate(360deg); } }
+  .err-box { background: #3a1f24; border: 1px solid var(--bad); color: #ffb3b3; border-radius: 8px; padding: 10px 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>JobSearch — resume-matched job aggregator</h1>
+  <p class="sub">Placeholder UI for development. The real frontend replaces this page; consume the REST API (docs at <a href="/docs" style="color:var(--accent)">/docs</a>).</p>
+  <div class="banner">Endpoints: <code>POST /api/resume</code> → <code>resumeId</code>, then <code>POST /api/jobs/search</code>. Provider <code>sample</code> works offline with no keys — use it while building.</div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>1 · Resume</h2>
+      <input type="file" id="resumeFile" accept=".pdf,.docx,.txt,.md">
+      <button id="uploadBtn" onclick="uploadResume()">Parse &amp; store resume</button>
+      <div id="resumeOut"></div>
+    </div>
+    <div class="card">
+      <h2>2 · Search</h2>
+      <label>Keywords</label>
+      <input type="text" id="keywords" value="software engineer" placeholder="software engineer">
+      <label>Location</label>
+      <input type="text" id="location" placeholder="New York, NY">
+      <label style="display:inline-flex;gap:6px;align-items:center;color:var(--text)">
+        <input type="checkbox" id="remote"> Remote only
+      </label>
+      <label>Providers</label>
+      <div class="providers" id="providers"></div>
+      <button id="searchBtn" onclick="doSearch()">Search &amp; score</button>
+    </div>
+  </div>
+
+  <div id="statusRow" class="status-row"></div>
+  <div id="results"><div class="empty">Upload a resume and run a search to see scored jobs here.</div></div>
+</div>
+
+<script>
+let resumeId = null;
+
+async function loadProviders() {
+  const el = document.getElementById('providers');
+  try {
+    const res = await fetch('/api/providers');
+    const providers = await res.json();
+    el.innerHTML = providers.map(p => {
+      const off = !p.configured && p.name !== 'sample';
+      const title = p.setupHint ? ` title="${p.setupHint}"` : '';
+      return `<label class="${off ? 'off' : ''}"${title}>
+        <input type="checkbox" value="${p.name}" ${off ? '' : 'checked'} ${off ? 'disabled' : ''}>
+        ${p.displayName}${off ? ' ⚠︎' : ''}
+      </label>`;
+    }).join('');
+  } catch (e) {
+    el.innerHTML = '<span class="empty">Could not load providers — is the API up?</span>';
+  }
+}
+
+async function uploadResume() {
+  const file = document.getElementById('resumeFile').files[0];
+  const out = document.getElementById('resumeOut');
+  if (!file) { out.innerHTML = '<div class="err-box">Pick a file first.</div>'; return; }
+  const btn = document.getElementById('uploadBtn');
+  btn.disabled = true; btn.textContent = 'Parsing…';
+  try {
+    const body = new FormData();
+    body.append('file', file);
+    const res = await fetch('/api/resume', { method: 'POST', body });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Parse failed');
+    resumeId = data.resumeId;
+    const p = data.profile;
+    out.innerHTML = `
+      <div class="chips">${p.skills.slice(0, 18).map(s => `<span class="chip">${s}</span>`).join('')}</div>
+      <div class="meta" style="margin-top:8px">Parsed: ${p.seniority || 'seniority?'} ·
+        ${p.yearsExperience ?? '?'} yrs · ${p.education || 'education?'} ·
+        top title: ${p.titles[0] || '—'}</div>
+      <input type="hidden" id="resumeId" value="${resumeId}">`;
+  } catch (e) {
+    out.innerHTML = `<div class="err-box">${e.message}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Parse & store resume';
+  }
+}
+
+async function doSearch() {
+  const keywords = document.getElementById('keywords').value.trim();
+  const resultsEl = document.getElementById('results');
+  const statusEl = document.getElementById('statusRow');
+  if (!keywords) { resultsEl.innerHTML = '<div class="err-box">Keywords required.</div>'; return; }
+  const providers = [...document.querySelectorAll('.providers input:checked')].map(i => i.value);
+  const body = {
+    keywords,
+    location: document.getElementById('location').value.trim() || null,
+    isRemote: document.getElementById('remote').checked,
+    providers,
+    limit: 30,
+  };
+  if (resumeId) body.resumeId = resumeId;
+  const btn = document.getElementById('searchBtn');
+  btn.disabled = true; btn.textContent = 'Searching… (scrapers can take ~30-60s)';
+  resultsEl.innerHTML = '<div class="empty"><span class="spin"></span> Searching providers…</div>';
+  statusEl.innerHTML = '';
+  try {
+    const res = await fetch('/api/jobs/search', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Search failed');
+    statusEl.innerHTML = data.providers.map(p =>
+      `<span class="pill ${p.status === 'ok' ? 'ok' : p.status === 'not_configured' ? 'nc' : 'err'}"
+        title="${p.error || ''}">${p.displayName || p.provider}: ${p.status}${p.status === 'ok' ? ` (${p.count})` : ''}</span>`
+    ).join('') + `<span class="pill">${data.duplicatesRemoved} duplicates merged</span>`;
+    if (!data.jobs.length) {
+      resultsEl.innerHTML = '<div class="empty">No jobs returned. Check the provider pills above — try adding the <b>sample</b> provider if all live ones are unconfigured/blocked.</div>';
+      return;
+    }
+    resultsEl.innerHTML = data.jobs.map(j => {
+      const cls = j.score >= 70 ? 'hi' : j.score >= 40 ? '' : 'lo';
+      const salary = j.salaryMin ? `$${Math.round(j.salaryMin / 1000)}k–$${Math.round((j.salaryMax || j.salaryMin) / 1000)}k${j.salaryPeriod === 'hourly' ? '/hr' : ''} · ` : '';
+      const also = (j.extra && j.extra.alsoFoundOn) ? ` · also on ${j.extra.alsoFoundOn.join(', ')}` : '';
+      const bd = j.breakdown;
+      return `<div class="job">
+        <div class="score ${cls}">${Math.round(j.score)}</div>
+        <div>
+          <h3><a href="${j.url || '#'}" target="_blank" rel="noopener">${j.title}</a></h3>
+          <div class="meta">${j.company || '—'} · ${j.location || '—'} · ${salary}${j.sourceDisplay}${also}${j.isRemote ? ' · 🌐 remote' : ''}</div>
+          ${bd ? `<div class="chips">${bd.matchedSkills.slice(0, 10).map(s => `<span class="chip">${s}</span>`).join('')}
+            ${bd.missingRequiredSkills.slice(0, 4).map(s => `<span class="chip grey">✗ ${s}</span>`).join('')}</div>
+          <ul class="reasons">${bd.reasons.map(r => `<li>${r}</li>`).join('')}</ul>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    resultsEl.innerHTML = `<div class="err-box">${e.message}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Search & score';
+  }
+}
+
+loadProviders();
+</script>
+</body>
+</html>

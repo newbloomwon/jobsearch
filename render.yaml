@@ -1,0 +1,20 @@
+# Deploy: Render dashboard -> New -> Web Service -> pick this repo.
+# Render detects this file. Give the service at least 1 GB RAM
+# (Starter plan) — scraping + parsing is tight on the free 512 MB tier.
+services:
+  - type: web
+    name: jobsearch-engine
+    runtime: docker
+    plan: starter
+    healthCheckPath: /healthz
+    envVars:
+      - key: ADZUNA_APP_ID
+        sync: false
+      - key: ADZUNA_APP_KEY
+        sync: false
+      - key: JOOBLE_API_KEY
+        sync: false
+      - key: JOBSPY_PROXIES
+        sync: false
+      - key: JOBSEARCH_ALLOWED_ORIGINS
+        sync: false
