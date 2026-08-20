@@ -27,8 +27,10 @@ cp .env.example .env          # optional: fill in free API keys
 uvicorn jobsearch_api.main:app --reload
 ```
 
-Open <http://localhost:8000> — a placeholder UI exercises every endpoint. The
-interactive API contract for the frontend lives at **`/docs`** (OpenAPI).
+Open <http://localhost:8000> — the frontend (`index.html` at the repo root) is
+served at `/` and wired to the live API: upload a resume, pick platforms, and
+Confirm runs a real scored search. The interactive API contract lives at
+**`/docs`** (OpenAPI).
 
 Zero-config behavior: with no API keys and no scrapers, everything still runs —
 the offline `sample` provider returns deterministic jobs so the frontend can be
@@ -116,7 +118,7 @@ heavier scraped volume, set `JOBSPY_PROXIES` (residential proxies).
 └──────────────────────────────────────────────────────────────────────────────┘
                                   ▲
 ┌──────────────────── jobsearch_api (thin FastAPI layer) ──────────────────────┐
-│  /api/resume  /api/jobs/search  /api/providers  /healthz  + placeholder UI   │
+│  /api/resume  /api/jobs/search  /api/providers  /healthz  + frontend at /    │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
