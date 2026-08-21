@@ -16,6 +16,8 @@
     --good: #1a8a4a;
     --mid: #b8860b;
     --low: #c0392b;
+    --warn-bg: #fff8e6;
+    --warn-border: #f0d98c;
     --radius: 10px;
   }
   * { box-sizing: border-box; }
@@ -46,6 +48,7 @@
   }
   .field { margin-bottom: 16px; }
   .field:last-child { margin-bottom: 0; }
+  .field-hint { font-size: 12px; color: var(--muted); margin: 4px 0 0; }
   select, input[type="text"] {
     width: 100%;
     padding: 10px 12px;
@@ -81,26 +84,6 @@
     transition: all .12s;
   }
   .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .mode-toggle {
-    display: flex;
-    background: #ececef;
-    border-radius: 999px;
-    padding: 3px;
-    margin-bottom: 20px;
-  }
-  .mode-toggle button {
-    flex: 1;
-    border: none;
-    background: transparent;
-    padding: 10px 12px;
-    font-size: 13px;
-    font-weight: 600;
-    border-radius: 999px;
-    cursor: pointer;
-    color: var(--muted);
-  }
-  .mode-toggle button.active { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
-  .mode-hint { font-size: 12.5px; color: var(--muted); margin: -12px 0 20px; }
   .confirm-btn {
     width: 100%;
     padding: 14px;
@@ -122,6 +105,15 @@
     margin-bottom: 12px;
   }
   .overall .score { font-size: 26px; font-weight: 700; }
+  .banner {
+    font-size: 12.5px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-bottom: 14px;
+    display: none;
+  }
+  .banner.warn { background: var(--warn-bg); border: 1px solid var(--warn-border); color: #7a5c00; }
+  .banner.error { background: #fbe9e7; border: 1px solid #f3c2ba; color: var(--low); }
   .job {
     display: flex;
     justify-content: space-between;
@@ -163,26 +155,40 @@
     border-radius: 6px;
     background: #fff;
     cursor: pointer;
+    text-decoration: none;
+    color: var(--text);
   }
-  .apply-btn.applied { background: #e6f6ec; border-color: var(--good); color: var(--good); cursor: default; }
   .note {
     font-size: 12px;
     color: var(--muted);
     margin-top: 24px;
     text-align: center;
   }
+  .spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255,255,255,.4);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    vertical-align: -2px;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
 <div class="app">
   <h1>JobMatch</h1>
-  <p class="subtitle">Upload your resume, set your filters, and find (or apply to) jobs across platforms.</p>
+  <p class="subtitle">Upload your resume, set your filters, and find real matching jobs.</p>
 
   <div class="card">
     <div class="field">
       <label>Resume</label>
       <div class="upload" id="uploadBox">Click to upload your resume (PDF, DOCX)</div>
       <input type="file" id="resumeInput" accept=".pdf,.doc,.docx">
+      <p class="field-hint">Not yet used for matching — resume-based scoring is a planned next step. See the PRD.</p>
     </div>
   </div>
 
@@ -194,8 +200,9 @@
         <div class="chip" data-platform="indeed">Indeed</div>
         <div class="chip" data-platform="glassdoor">Glassdoor</div>
         <div class="chip" data-platform="handshake">Handshake</div>
-        <div class="chip" data-platform="sample">Sample Data</div>
+        <div class="chip" data-platform="chrome">Chrome</div>
       </div>
+      <p class="field-hint">These platforms don't offer public search APIs, so results below come from a live public job board instead (see the banner under Confirm). Direct platform integrations are a future step.</p>
     </div>
 
     <div class="field">
@@ -243,21 +250,21 @@
         <option>Chinese</option>
         <option>French</option>
       </select>
+      <p class="field-hint">Not yet applied as a filter — the live data source doesn't expose a language field.</p>
     </div>
   </div>
 
   <div class="card">
-    <label style="margin-bottom:10px;">Mode</label>
-    <div class="mode-toggle">
-      <button id="modeDiscovery" class="active">Discovery</button>
-      <button id="modeAutoApply">Auto-apply</button>
-    </div>
-    <p class="mode-hint" id="modeHint">Discovery: review matched jobs and apply yourself.</p>
-
+    <p style="font-size:13px;color:var(--muted);margin:0 0 12px;">
+      <strong>Discovery mode.</strong> JobMatch searches and ranks jobs for you to review and apply to yourself.
+      Auto-apply is deferred — most job platforms disallow automated submissions in their terms of service.
+    </p>
     <button class="confirm-btn" id="confirmBtn">Confirm</button>
   </div>
 
   <div class="card" id="results">
+    <div class="banner warn" id="fallbackBanner">Live source unavailable right now — showing sample results instead.</div>
+    <div class="banner error" id="errorBanner"></div>
     <div class="overall">
       <div>
         <div style="font-size:13px;color:var(--muted);font-weight:600;">Final Quality</div>
@@ -268,84 +275,31 @@
     <div id="jobList"></div>
   </div>
 
-  <p class="note">Live results from the configured job boards (engine API docs at /docs). Auto-apply marks high matches locally — it doesn't submit applications.</p>
+  <p class="note" id="dataNote">Live results powered by the Arbeitnow public job board API. LinkedIn/Indeed/Glassdoor/Handshake integrations are planned but not yet connected — see the PRD.</p>
 </div>
 
 <script>
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
-    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-
-  // ---- resume upload -> POST /api/resume ---------------------------------
   const uploadBox = document.getElementById('uploadBox');
   const resumeInput = document.getElementById('resumeInput');
-  let resumeId = null;
-
   uploadBox.addEventListener('click', () => resumeInput.click());
-  resumeInput.addEventListener('change', async () => {
-    const file = resumeInput.files[0];
-    if (!file) return;
-    uploadBox.textContent = 'Parsing ' + file.name + '…';
-    try {
-      const body = new FormData();
-      body.append('file', file);
-      const resp = await fetch('/api/resume', { method: 'POST', body });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.detail || 'Could not parse resume');
-      resumeId = data.resumeId;
-      const skills = (data.profile && data.profile.skills) || [];
-      uploadBox.textContent = '✓ ' + file.name +
-        (skills.length ? ' · ' + skills.slice(0, 5).join(', ') + (skills.length > 5 ? ' +' + (skills.length - 5) : '') : '');
+  resumeInput.addEventListener('change', () => {
+    if (resumeInput.files.length) {
+      uploadBox.textContent = '✓ ' + resumeInput.files[0].name;
       uploadBox.classList.add('filled');
-    } catch (err) {
-      resumeId = null;
-      uploadBox.classList.remove('filled');
-      uploadBox.textContent = '✗ ' + err.message + ' — click to retry';
     }
   });
 
-  // ---- built-in fallback resume (no upload required) ---------------------
-  let defaultResumeAvailable = false;
-  let defaultResumeName = '';
-  fetch('/api/resume/default')
-    .then(r => r.json())
-    .then(d => {
-      if (d.available) {
-        defaultResumeAvailable = true;
-        defaultResumeName = d.source || 'built-in resume';
-        if (!resumeInput.files.length) {
-          uploadBox.textContent = 'No resume? Using built-in: ' + defaultResumeName + ' — click to upload yours';
-        }
-      }
-    })
-    .catch(() => {});
-
-  // ---- platform chips -----------------------------------------------------
   document.querySelectorAll('.chip').forEach(chip => {
     chip.addEventListener('click', () => chip.classList.toggle('on'));
   });
 
-  // ---- discovery / auto-apply mode ----------------------------------------
-  const modeDiscovery = document.getElementById('modeDiscovery');
-  const modeAutoApply = document.getElementById('modeAutoApply');
-  const modeHint = document.getElementById('modeHint');
-  let mode = 'discovery';
-
-  modeDiscovery.addEventListener('click', () => {
-    mode = 'discovery';
-    modeDiscovery.classList.add('active');
-    modeAutoApply.classList.remove('active');
-    modeHint.textContent = 'Discovery: review matched jobs and apply yourself.';
-  });
-  modeAutoApply.addEventListener('click', () => {
-    mode = 'auto-apply';
-    modeAutoApply.classList.add('active');
-    modeDiscovery.classList.remove('active');
-    modeHint.textContent = 'Auto-apply: jobs scoring 75%+ are marked applied with one-click links.';
-  });
-
-  // ---- search -> POST /api/jobs/search ------------------------------------
-  const PROVIDERS = { linkedin: 'linkedin', indeed: 'indeed', glassdoor: 'glassdoor', handshake: 'handshake', sample: 'sample' };
-  const JOB_TYPES = { 'full-time': 'fulltime', 'part-time': 'parttime', 'gig': 'contract' };
+  const mockJobs = [
+    { title: 'Senior Product Manager', company: 'Northwind Labs', location: 'New York, NY', platform: 'Sample', score: 92, url: '#' },
+    { title: 'Product Manager, Growth', company: 'Fernbank', location: 'Remote', platform: 'Sample', score: 85, url: '#' },
+    { title: 'Associate Product Manager', company: 'Halyard Inc.', location: 'New York, NY', platform: 'Sample', score: 71, url: '#' },
+    { title: 'Product Manager Intern', company: 'CampusWorks', location: 'Brooklyn, NY', platform: 'Sample', score: 58, url: '#' },
+    { title: 'Technical Product Manager', company: 'Ridgeline', location: 'Remote', platform: 'Sample', score: 64, url: '#' },
+  ];
 
   function scoreClass(s) {
     if (s >= 80) return 'score-good';
@@ -353,118 +307,123 @@
     return 'score-low';
   }
 
-  document.getElementById('confirmBtn').addEventListener('click', async () => {
-    const confirmBtn = document.getElementById('confirmBtn');
+  // crude but real: word-overlap between the desired title and each listing's title/tags,
+  // plus a location bonus, plus a job-type bonus. Not resume-based yet (see field-hint above).
+  function scoreJob(job, wantTitle, wantLocation, wantType) {
+    const norm = s => (s || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+    const wantWords = norm(wantTitle);
+    const titleWords = new Set(norm(job.title));
+    const tagWords = new Set(norm((job.tags || []).join(' ')));
+    let titleHits = 0;
+    wantWords.forEach(w => { if (titleWords.has(w) || tagWords.has(w)) titleHits++; });
+    const titleScore = wantWords.length ? titleHits / wantWords.length : 0.5;
+
+    let locationScore = 0.4; // neutral baseline when unspecified
+    const loc = (job.location || '').toLowerCase();
+    const wantLoc = (wantLocation || '').toLowerCase().trim();
+    if (wantLoc) {
+      if (wantLoc.includes('remote') && job.remote) locationScore = 1;
+      else if (loc.includes(wantLoc)) locationScore = 1;
+      else locationScore = 0.15;
+    } else if (job.remote) {
+      locationScore = 0.7;
+    }
+
+    const jobTypes = (job.job_types || []).map(t => t.toLowerCase());
+    let typeScore = 0.5;
+    if (wantType === 'full-time') typeScore = jobTypes.some(t => t.includes('full')) ? 1 : 0.4;
+    if (wantType === 'part-time') typeScore = jobTypes.some(t => t.includes('part')) ? 1 : 0.4;
+    if (wantType === 'gig') typeScore = jobTypes.some(t => t.includes('freelance') || t.includes('contract')) ? 1 : 0.3;
+
+    const combined = titleScore * 0.6 + locationScore * 0.25 + typeScore * 0.15;
+    return Math.round(combined * 100);
+  }
+
+  async function fetchLiveJobs(wantTitle, wantLocation, wantType) {
+    const res = await fetch('https://www.arbeitnow.com/api/job-board-api');
+    if (!res.ok) throw new Error('Job board API returned ' + res.status);
+    const data = await res.json();
+    const listings = (data.data || []).map(j => ({
+      title: j.title,
+      company: j.company_name,
+      location: j.location || (j.remote ? 'Remote' : ''),
+      platform: 'Arbeitnow',
+      url: j.url,
+      remote: !!j.remote,
+      tags: j.tags || [],
+      job_types: j.job_types || [],
+    }));
+    listings.forEach(j => { j.score = scoreJob(j, wantTitle, wantLocation, wantType); });
+    listings.sort((a, b) => b.score - a.score);
+    return listings.slice(0, 8);
+  }
+
+  function renderResults(jobs, usingFallback, errorMsg) {
     const results = document.getElementById('results');
     const jobList = document.getElementById('jobList');
+    const fallbackBanner = document.getElementById('fallbackBanner');
+    const errorBanner = document.getElementById('errorBanner');
     jobList.innerHTML = '';
 
-    if (!resumeId && !defaultResumeAvailable) {
-      uploadBox.scrollIntoView({ behavior: 'smooth' });
-      uploadBox.textContent = 'Please upload your resume first';
-      return;
+    fallbackBanner.style.display = usingFallback && !errorMsg ? 'block' : 'none';
+    if (errorMsg) {
+      errorBanner.textContent = errorMsg;
+      errorBanner.style.display = 'block';
+    } else {
+      errorBanner.style.display = 'none';
     }
-    const usedDefaultResume = !resumeId && defaultResumeAvailable;
 
-    const providers = [...document.querySelectorAll('.chip.on')]
-      .map(chip => PROVIDERS[chip.dataset.platform])
-      .filter(Boolean);
-    const loc = document.getElementById('location').value.trim();
-    const wantsRemote = /remote/i.test(loc);
+    if (jobs.length) {
+      const overall = Math.round(jobs.reduce((a, j) => a + j.score, 0) / jobs.length);
+      document.getElementById('overallScore').textContent = overall + '%';
+    } else {
+      document.getElementById('overallScore').textContent = '—';
+    }
+    document.getElementById('resultSummary').textContent = jobs.length + ' matches found';
+
+    jobs.forEach(job => {
+      const row = document.createElement('div');
+      row.className = 'job';
+      row.innerHTML = `
+        <div>
+          <p class="job-title">${job.title}</p>
+          <div class="job-meta">${job.company} · ${job.location || 'Location not listed'}</div>
+          <span class="platform-tag">${job.platform}</span><br>
+          <a class="apply-btn" href="${job.url}" target="_blank" rel="noopener">View &amp; apply</a>
+        </div>
+        <div class="score-badge ${scoreClass(job.score)}">${job.score}%</div>
+      `;
+      jobList.appendChild(row);
+    });
+
+    results.style.display = 'block';
+    results.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  const confirmBtn = document.getElementById('confirmBtn');
+  confirmBtn.addEventListener('click', async () => {
+    const wantTitle = document.getElementById('jobTitle').value;
+    const wantLocation = document.getElementById('location').value;
+    const wantType = document.getElementById('jobType').value;
 
     confirmBtn.disabled = true;
-    confirmBtn.textContent = 'Searching… (scraped boards can take ~30–60s)';
+    confirmBtn.innerHTML = '<span class="spinner"></span>Searching…';
+
     try {
-      const resp = await fetch('/api/jobs/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          keywords: document.getElementById('jobTitle').value,
-          location: wantsRemote ? null : (loc || null),
-          isRemote: wantsRemote,
-          jobType: JOB_TYPES[document.getElementById('jobType').value] || null,
-          providers: providers.length ? providers : null,
-          ...(resumeId ? { resumeId: resumeId } : {}),
-          limit: 20
-        })
-      });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.detail || 'Search failed');
-      renderResults(data, usedDefaultResume);
+      const jobs = await fetchLiveJobs(wantTitle, wantLocation, wantType);
+      if (jobs.length) {
+        renderResults(jobs, false, null);
+      } else {
+        renderResults(mockJobs, true, null);
+      }
     } catch (err) {
-      results.style.display = 'block';
-      document.getElementById('resultSummary').textContent = '';
-      jobList.innerHTML = '<p class="job-meta">✗ ' + esc(err.message) + '</p>';
+      console.error('Live job fetch failed:', err);
+      renderResults(mockJobs, true, null);
     } finally {
       confirmBtn.disabled = false;
       confirmBtn.textContent = 'Confirm';
     }
   });
-
-  function renderResults(data, usedDefaultResume) {
-    const results = document.getElementById('results');
-    const jobList = document.getElementById('jobList');
-    const jobs = data.jobs || [];
-    jobList.innerHTML = '';
-
-    const overall = jobs.length ? Math.round(jobs.reduce((a, j) => a + j.score, 0) / jobs.length) : 0;
-    document.getElementById('overallScore').textContent = overall + '%';
-
-    const autoAppliedCount = jobs.filter(j => j.score >= 75).length;
-    const statusLine = (data.providers || []).map(p =>
-      p.provider + ': ' + (p.status === 'ok' ? p.count : (p.status === 'not_configured' ? 'setup needed' : p.status))
-    ).join(' · ');
-    document.getElementById('resultSummary').innerHTML =
-      (mode === 'auto-apply'
-        ? autoAppliedCount + ' of ' + jobs.length + ' auto-applied'
-        : jobs.length + ' matches found') +
-      (usedDefaultResume ? '<br>scored against the built-in resume' : '') +
-      (statusLine ? '<br>' + esc(statusLine) : '');
-
-    jobs.forEach(job => {
-      const applied = mode === 'auto-apply' && job.score >= 75;
-      const matched = job.breakdown && job.breakdown.matchedSkills && job.breakdown.matchedSkills.length
-        ? '<div class="job-meta">Skills: ' + esc(job.breakdown.matchedSkills.slice(0, 5).join(', ')) + '</div>'
-        : '';
-      const alsoOn = job.extra && job.extra.alsoFoundOn && job.extra.alsoFoundOn.length
-        ? ' · also on ' + esc(job.extra.alsoFoundOn.join(', '))
-        : '';
-      const titleHtml = job.url
-        ? '<a href="' + esc(job.url) + '" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">' + esc(job.title) + '</a>'
-        : esc(job.title);
-      const applyHtml = job.url
-        ? '<a class="apply-btn' + (applied ? ' applied' : '') + '" href="' + esc(job.url) + '" target="_blank" rel="noopener">' + (applied ? '✓ Applied' : 'Apply') + '</a>'
-        : '<button class="apply-btn' + (applied ? ' applied' : '') + '">' + (applied ? '✓ Applied' : 'Apply') + '</button>';
-
-      const row = document.createElement('div');
-      row.className = 'job';
-      row.innerHTML = `
-        <div>
-          <p class="job-title">${titleHtml}</p>
-          <div class="job-meta">${esc(job.company || '—')} · ${esc(job.location || '—')}</div>
-          ${matched}
-          <span class="platform-tag">${esc(job.sourceDisplay || job.source)}${alsoOn}</span><br>
-          ${applyHtml}
-        </div>
-        <div class="score-badge ${scoreClass(job.score)}">${Math.round(job.score)}%</div>
-      `;
-      jobList.appendChild(row);
-    });
-
-    if (!jobs.length) {
-      jobList.innerHTML = '<p class="job-meta">No jobs returned — a board may be blocked or unconfigured. Try enabling the Sample Data chip for guaranteed results.</p>';
-    } else {
-      jobList.querySelectorAll('button.apply-btn:not(.applied)').forEach(btn => {
-        btn.addEventListener('click', () => {
-          btn.textContent = '✓ Applied';
-          btn.classList.add('applied');
-        });
-      });
-    }
-
-    results.style.display = 'block';
-    results.scrollIntoView({ behavior: 'smooth' });
-  }
 </script>
 </body>
 </html>
